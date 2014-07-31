@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:tx="http://www.springframework.org/schema/tx"
+	   xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:cxf="http://camel.apache.org/schema/cxf"
+       xmlns:jaxrs="http://cxf.apache.org/jaxrs"
+       xmlns:util="http://www.springframework.org/schema/util" 
+       xsi:schemaLocation="
+         http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+          http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx.xsd
+          http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util.xsd
+          http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+          http://camel.apache.org/schema/cxf http://camel.apache.org/schema/cxf/camel-cxf.xsd
+       	  http://cxf.apache.org/jaxrs http://cxf.apache.org/schemas/jaxrs.xsd
+         http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
+	
+	
+	 
+	<context:annotation-config/>
+	<context:component-scan base-package="com.myhealth" />
+  
+   <context:property-placeholder location="classpath:META-INF/db.properties"/>
+  	
+   <util:map id="propertiesMap">
+    <entry key="jaxb.formatted.output">
+       <value type="java.lang.Boolean">true</value>
+    </entry>
+   </util:map>
+   
+   <!-- CXF REST -->
+   <bean id="myHealthServiceRest" class="com.myhealth.app.MyHealthService"/>
+   <!-- <jaxrs:server id="jaxRsServer" address="/" serviceClass="com.myhealth.app.MyHealthService"/> -->
+   <jaxrs:server id="jaxRsServer" address="/service">
+	    <jaxrs:serviceBeans>
+	        <ref bean="myHealthServiceRest"/>
+	    </jaxrs:serviceBeans>
+	    <jaxrs:providers>
+		    <bean class="org.codehaus.jackson.jaxrs.JacksonJsonProvider"/>
+            <bean id="jaxbProvider" class="org.apache.cxf.jaxrs.provider.JAXBElementProvider">
+                <property name="marshallerProperties" ref="propertiesMap"/>
+            </bean>
+            <bean class="com.myhealth.util.JsonpProvider">
+                <property name="ignoreNamespaces" value="true" />
+                <property name="dropRootElement" value="false" />
+                <property name="supportUnwrapped" value="true" />
+            </bean>
+		</jaxrs:providers>
+    
+        <jaxrs:inInterceptors>
+            <bean class="org.apache.cxf.jaxrs.provider.jsonp.JsonpInInterceptor">
+                <property name="callbackParam" value="callback" />
+            </bean>
+        </jaxrs:inInterceptors>	
+        <jaxrs:outInterceptors>
+            <bean class="org.apache.cxf.jaxrs.provider.jsonp.JsonpPreStreamInterceptor">
+                <property name="mediaType" value="application/x-javascript" />
+            </bean>
+            <bean class="org.apache.cxf.jaxrs.provider.jsonp.JsonpPostStreamInterceptor"/>
+        </jaxrs:outInterceptors>
+        <jaxrs:extensionMappings>
+            <entry key="xml" value="application/xml"/>
+            <entry key="json" value="application/json"/>
+            <entry key="jsonp" value="application/javascript"/>
+        </jaxrs:extensionMappings>
+	</jaxrs:server>
+
+	<import resource="classpath:META-INF/cxf/cxf.xml"/>
+	<import resource="classpath:META-INF/cxf/cxf-servlet.xml"/>
+  
+    <!-- Database Communication -->
+    <bean id="abstractSessionFactory" abstract="true" class="org.springframework.orm.hibernate4.LocalSessionFactoryBean">
+    </bean>
+    
+    <bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource" destroy-method="close">
+        <property name="driverClass" value="${hibernate.connection.driver_class}" />
+        <property name="jdbcUrl" value="${hibernate.connection.url}" />
+        <property name="user" value="${hibernate.connection.username}" />
+        <property name="password" value="${hibernate.connection.password}" />
+        
+        <!-- C3P0 properties -->
+        <property name="acquireIncrement" value="${c3p0.acquireIncrement}" />
+        <property name="minPoolSize" value="${c3p0.minPoolSize}" />
+        <property name="maxPoolSize" value="${c3p0.maxPoolSize}" />
+        <property name="maxIdleTime" value="${c3p0.maxIdleTime}" />
+    </bean>
+    
+    <bean id="sessionFactory" parent="abstractSessionFactory">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="packagesToScan">
+            <list>
+                <value>com.myhealth.model</value>
+            </list>
+        </property>
+        <property name="hibernateProperties">
+            <props>
+                <prop key="hibernate.dialect">${hibernate.dialect}</prop>
+                <prop key="hibernate.show_sql">true</prop>
+                <prop key="hibernate.hbm2ddl.auto">update</prop>
+            </props>
+ 
+        </property>
+    </bean>
+    
+</beans>
